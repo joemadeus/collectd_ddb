@@ -102,6 +102,12 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+
+	tableExists := ddb.Ping()
+	if tableExists == false {
+		panic("The table needed for the DDB plugin does not exist. Run the plugin from the command line to create it")
+	}
+
 	plugin.RegisterWrite("ddb", ddb)
 }
 
