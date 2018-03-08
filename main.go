@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
 	"time"
 
 	"collectd.org/api"
@@ -58,22 +60,79 @@ func (ddbp *DDBPlugin) Write(_ context.Context, vl *api.ValueList) error {
 	return nil
 }
 
+func (ddbp *DDBPlugin) CreateTable() error {
+	create := &dynamodb.CreateTableInput{
+		AttributeDefinitions: []*dynamodb.AttributeDefinition{
+			{
+				AttributeName: aws.String("time"),
+				AttributeType: aws.String("N"),
+			},
+			{
+				AttributeName: aws.String("host"),
+				AttributeType: aws.String("S"),
+			},
+			{
+				AttributeName: aws.String("plugin"),
+				AttributeType: aws.String("S"),
+			},
+		},
+		KeySchema: []*dynamodb.KeySchemaElement{
+			{
+				AttributeName: aws.String("time-host-plugin"),
+				KeyType:       aws.String("RANGE"),
+			},
+		},
+		TableName: aws.String(tableName),
+	}
+
+	_, err := ddbp.ddb.CreateTable(create)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (ddbp *DDBPlugin) DescribeTable() (*dynamodb.DescribeTableOutput, error) {
+	return ddbp.ddb.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+}
+
+func NewDDBPlugin() (*DDBPlugin, error) {
+	sess, err := session.NewSession()
+	if err != nil {
+		return nil, err
+	}
+
+	return &DDBPlugin{
+		session: sess,
+		ddb:     dynamodb.New(sess),
+	}, nil
+}
+
 func init() {
-	sess, err := session.NewSession(
-		&aws.Config{Region: aws.String("us-west-2")},
-	)
+	ddb, err := NewDDBPlugin()
 	if err != nil {
 		panic(err)
 	}
-
-	plugin.RegisterWrite("ddb", &DDBPlugin{
-		session: sess,
-		ddb:     dynamodb.New(sess),
-	})
+	plugin.RegisterWrite("ddb", ddb)
 }
 
 // Ignored by the collectd daemon, but end users can verify that their tables are present
 // and available by exec'ing this binary from a command line
+//
+// ATTRIBUTES:
+// time     N
+// host     S
+// plugin   S
+// interval, type, values, dstypes, dsnames
+//
+// KEYS:
+// time-host-plugin RANGE
 func main() {
-	// TODO
+	ddb, err := NewDDBPlugin()
+	if err != nil {
+		fmt.Errorf("could not create a DDB session or instance", err)
+		os.Exit(1)
+	}
+
 }
