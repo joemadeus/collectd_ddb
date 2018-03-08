@@ -13,6 +13,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
 
+const (
+	// no way to set config values from collectd, otherwise this would be there
+	tableName = "collectd_ddb"
+)
+
 type DDBIdentifier struct {
 	Host   string `json:"host"`
 	Plugin string `json:"plugin"`
@@ -41,7 +46,7 @@ func (ddbp *DDBPlugin) Write(_ context.Context, vl *api.ValueList) error {
 
 	input := &dynamodb.PutItemInput{
 		Item:      attrValue,
-		TableName: aws.String("Movies"),
+		TableName: aws.String(tableName),
 	}
 
 	_, err = ddbp.ddb.PutItem(input)
