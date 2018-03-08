@@ -2,10 +2,9 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
-	"time"
 
 	"collectd.org/api"
 	"collectd.org/plugin"
@@ -19,21 +18,6 @@ const (
 	// no way to set config values from collectd, otherwise this would be there
 	tableName = "collectd_ddb"
 )
-
-type DDBIdentifier struct {
-	Host   string `json:"host"`
-	Plugin string `json:"plugin"`
-	Type   string `json:"type"`
-}
-
-// A DDBValueList is the DynamoDB's representation of a collectd ValueList
-type DDBValueList struct {
-	DDBIdentifier
-	Time     time.Time     `json:"time"`
-	Interval time.Duration `json:"interval"`
-	Values   []json.Number `json:"values"`
-	DSNames  []string
-}
 
 type DDBPlugin struct {
 	session *session.Session
@@ -93,8 +77,12 @@ func (ddbp *DDBPlugin) CreateTable() error {
 	return nil
 }
 
-func (ddbp *DDBPlugin) DescribeTable() (*dynamodb.DescribeTableOutput, error) {
-	return ddbp.ddb.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+func (ddbp *DDBPlugin) Ping() bool {
+	_, err := ddbp.ddb.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+	if err != nil {
+		fmt.Fprint(os.Stderr, "could not ping/describe the DDB table", err)
+	}
+	return err != nil
 }
 
 func NewDDBPlugin() (*DDBPlugin, error) {
@@ -117,8 +105,8 @@ func init() {
 	plugin.RegisterWrite("ddb", ddb)
 }
 
-// Ignored by the collectd daemon, but end users can verify that their tables are present
-// and available by exec'ing this binary from a command line
+// Ignored by the collectd daemon, but end users can verify that their table is present
+// and available -- or create the table -- by exec'ing this binary from a command line
 //
 // ATTRIBUTES:
 // time     N
@@ -129,10 +117,25 @@ func init() {
 // KEYS:
 // time-host-plugin RANGE
 func main() {
+	var create = flag.Bool("create", false, "create the necessary tables in DDB")
+	flag.Parse()
+
 	ddb, err := NewDDBPlugin()
 	if err != nil {
-		fmt.Errorf("could not create a DDB session or instance", err)
+		fmt.Fprint(os.Stderr, "could not create a DDB session or instance", err)
 		os.Exit(1)
 	}
 
+	ping := ddb.Ping()
+	if *create {
+		if ping {
+			fmt.Fprint(os.Stderr, "The table already exists. Cannot create")
+			os.Exit(1)
+		}
+
+		ddb.CreateTable()
+	}
+
+	fmt.Fprint(os.Stdout, "table exists")
+	os.Exit(0)
 }
