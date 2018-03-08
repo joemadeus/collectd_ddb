@@ -123,7 +123,7 @@ func init() {
 // KEYS:
 // time-host-plugin RANGE
 func main() {
-	var create = flag.Bool("create", false, "create the necessary tables in DDB")
+	create := *flag.Bool("create", false, "create the necessary tables in DDB")
 	flag.Parse()
 
 	ddb, err := NewDDBPlugin()
@@ -133,7 +133,7 @@ func main() {
 	}
 
 	ping := ddb.Ping()
-	if *create {
+	if create {
 		if ping {
 			fmt.Fprint(os.Stderr, "The table already exists. Cannot create")
 			os.Exit(1)
