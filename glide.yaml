@@ -1,0 +1,8 @@
+package: github.com/joemadeus/collectd_ddb
+import:
+- package: collectd.org
+  version: ^0.3.0
+  subpackages:
+  - api
+- package: github.com/aws/aws-sdk-go
+  version: ^1.13.10
