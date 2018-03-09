@@ -12,59 +12,73 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
 
-const (
-	// no way to set config values from collectd, otherwise this would be there
-	TableName = "collectd_ddb"
-)
-
 type DDBPlugin struct {
-	session *session.Session
-	ddb     *dynamodb.DynamoDB
+	TableName string
+	session   *session.Session
+	ddb       *dynamodb.DynamoDB
 }
 
 // Creates a new DDBPlugin with an AWS session and DDB instance
-func NewDDBPlugin() (*DDBPlugin, error) {
+func NewDDBPlugin(awsRegion string, awsProfileName string, ddbTableName string) (*DDBPlugin, error) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintln(os.Stderr, "(recovered)")
 		}
 	}()
 
-	sess, err := session.NewSession()
-	if err != nil {
-		return nil, err
-	}
+	sess := session.Must(session.NewSessionWithOptions(
+		session.Options{
+			Profile: awsProfileName,
+			Config: aws.Config{
+				Region:                        aws.String(awsRegion),
+				CredentialsChainVerboseErrors: aws.Bool(true),
+			},
+		}))
 
 	return &DDBPlugin{
-		session: sess,
-		ddb:     dynamodb.New(sess),
+		TableName: ddbTableName,
+		session:   sess,
+		ddb:       dynamodb.New(sess),
 	}, nil
 }
 
 // Creates a table suitable for collectd plugin use
+//
+// ATTRIBUTES:
+// time     N
+// host     S
+// plugin   S
+// interval, type, values, dstypes, dsnames
+//
+// KEYS:
+// time-host-plugin RANGE
 func (ddbp *DDBPlugin) CreateTable() error {
 	create := &dynamodb.CreateTableInput{
 		AttributeDefinitions: []*dynamodb.AttributeDefinition{
 			{
+				AttributeName: aws.String("host-plugin"),
+				AttributeType: aws.String("S"),
+			},
+			{
 				AttributeName: aws.String("time"),
 				AttributeType: aws.String("N"),
-			},
-			{
-				AttributeName: aws.String("host"),
-				AttributeType: aws.String("S"),
-			},
-			{
-				AttributeName: aws.String("plugin"),
-				AttributeType: aws.String("S"),
 			},
 		},
 		KeySchema: []*dynamodb.KeySchemaElement{
 			{
-				AttributeName: aws.String("time-host-plugin"),
+				AttributeName: aws.String("host-plugin"),
+				KeyType:       aws.String("HASH"),
+			},
+			{
+				AttributeName: aws.String("time"),
 				KeyType:       aws.String("RANGE"),
 			},
 		},
-		TableName: aws.String(TableName),
+		ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(10),
+			WriteCapacityUnits: aws.Int64(10),
+		},
+		TableName: aws.String(ddbp.TableName),
 	}
 
 	_, err := ddbp.ddb.CreateTable(create)
@@ -76,12 +90,9 @@ func (ddbp *DDBPlugin) CreateTable() error {
 }
 
 // Returns 'true' if the table can be described -- i.e., if we're able to query it
-func (ddbp *DDBPlugin) Ping() bool {
-	_, err := ddbp.ddb.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(TableName)})
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "could not ping/describe the DDB table: ", err.Error())
-	}
-	return err != nil
+func (ddbp *DDBPlugin) Ping() (bool, error) {
+	_, err := ddbp.ddb.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(ddbp.TableName)})
+	return err == nil, err
 }
 
 // Does the write work for collectd
@@ -93,7 +104,7 @@ func (ddbp *DDBPlugin) Write(_ context.Context, vl *collectdApi.ValueList) error
 
 	input := &dynamodb.PutItemInput{
 		Item:      attrValue,
-		TableName: aws.String(TableName),
+		TableName: aws.String(ddbp.TableName),
 	}
 
 	_, err = ddbp.ddb.PutItem(input)
