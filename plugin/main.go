@@ -24,12 +24,12 @@ func init() {
 	}
 
 	if region == "" {
-		collectdPlugin.Errorf("the region env var must be set. use " + profileEnvVarName)
+		collectdPlugin.Errorf("the region env var must be set. use " + regionEnvVarName)
 		panic("Please set up your env correctly. See the log for details")
 	}
 
 	if tableName == "" {
-		collectdPlugin.Errorf("the table env var must be set. use " + profileEnvVarName)
+		collectdPlugin.Errorf("the table env var must be set. use " + tableEnvVarName)
 		panic("Please set up your env correctly. See the log for details")
 	}
 

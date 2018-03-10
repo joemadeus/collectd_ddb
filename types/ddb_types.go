@@ -44,14 +44,8 @@ func NewDDBPlugin(awsRegion string, awsProfileName string, ddbTableName string) 
 
 // Creates a table suitable for collectd plugin use
 //
-// ATTRIBUTES:
-// time     N
-// host     S
-// plugin   S
-// interval, type, values, dstypes, dsnames
-//
-// KEYS:
-// time-host-plugin RANGE
+// ATTRIBUTES: host-plugin (S) & time (N)
+// KEYS: host-plugin (HASH) & time (RANGE)
 func (ddbp *DDBPlugin) CreateTable() error {
 	create := &dynamodb.CreateTableInput{
 		AttributeDefinitions: []*dynamodb.AttributeDefinition{
