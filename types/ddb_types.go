@@ -12,6 +12,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
 
+type DDBValueList struct {
+	*collectdApi.ValueList
+	HostPlugin string `json:"host-plugin"`
+}
+
 type DDBPlugin struct {
 	TableName string
 	session   *session.Session
@@ -91,7 +96,19 @@ func (ddbp *DDBPlugin) Ping() (bool, error) {
 
 // Does the write work for collectd
 func (ddbp *DDBPlugin) Write(_ context.Context, vl *collectdApi.ValueList) error {
-	attrValue, err := dynamodbattribute.MarshalMap(vl)
+	hpBytes := make([]byte, 0)
+	posit := 0
+
+	posit += copy(hpBytes[posit:], vl.Host)
+	posit += copy(hpBytes[posit:], "-")
+	posit += copy(hpBytes[posit:], vl.Plugin)
+
+	ddbValueList := DDBValueList{
+		vl,
+		string(hpBytes),
+	}
+
+	attrValue, err := dynamodbattribute.MarshalMap(ddbValueList)
 	if err != nil {
 		return err
 	}

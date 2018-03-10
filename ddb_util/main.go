@@ -34,7 +34,7 @@ func main() {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Cannot create the table: %v\n", err.Error())
 		} else {
-			fmt.Fprintf(os.Stdout, "Created table %s with read and write provisioned throughput of 10\n")
+			fmt.Fprintf(os.Stdout, "Created table %s with read and write provisioned throughput of 10\n", *tableName)
 		}
 
 	} else if ping == false {
